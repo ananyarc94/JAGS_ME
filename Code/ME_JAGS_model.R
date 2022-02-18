@@ -13,7 +13,7 @@ library(tidymodels)
 library(dplyr)
 
 # Source functions
-function_directory <- setwd("C:\\Users\\anany\\Desktop\\Research\\JAGS\\MyProject")
+function_directory <- getwd()
 source(paste0(function_directory, "/process_data.R"))
 source(paste0(function_directory, "/plot_gam.R"))
 
@@ -57,7 +57,7 @@ y_sc <- "fatigue_mean_intensity_score_diff_sc"
 
 ## physical activity vars
 pa_vars <- c("mvpa_avg_as_is_1952_orig_diff_sc", "mean_activity_bout_duration10_diff_sc")
-plot_title <- c("MVPA", "Mean ABD") # titles for plotting 
+plot_title <- c("MVPA", "Mean ABD") # titles for plotting
 
 ## non-PA covariates
 covars <- c("age100", "BMI_obese", "ht_sample", "breast_sample")
@@ -68,63 +68,59 @@ covars <- c(paste0(covars, ".C"), paste0(covars, ".I"))
 #################################################################################
 # Build the model
 #################################################################################
-#convert the categorical covariates into dummy variables 
+#convert the categorical covariates into dummy variables
 
 rec_obj <- recipe(fatigue_mean_intensity_score_diff_sc ~ ., data = data)
 ind_vars <- rec_obj %>%
-  step_dummy(all_nominal_predictors()) 
+  step_dummy(all_nominal_predictors())
 trained_rec <- prep(ind_vars, training = data)
 train_data <- bake(trained_rec, new_data = data)
 
 #selecting the relevant columns to form the design matrix X
-X.mat <- train_data[, c(23,24,34:50)]
+X.mat <- train_data[, c(21,23,24,34:50)]
 
 
 
 model_string <- "model{
   for (i in 1:n){
-    
+
     # response model
-    mu[i] <- beta%*%X.mat[i,] + g1*z1[i] + g2*z2[i]
+    mu[i] <- beta%*%X.mat[i,] + g*z[i]
     y[i] ~ dnorm (mu[i], tau.y)
-    
-    
-    # MVPA model 
-    z1[i] ~ dnorm(0, taue1)
+
+
+    # MVPA model
+    z[i] ~ dnorm(0, taue)
     # classical measurement error model
-    mvpa_avg_as_is_1952_orig_diff_sc[i] ~ dnorm(z1[i], tauu1)
-    
-    # MABD model 
-    z2[i] ~ dnorm(0, taue2)
-    # classical measurement error model
-    mean_activity_bout_duration10_diff_sc[i] ~ dnorm(z2[i], tauu2)
-    
+    mvpa_avg_as_is_1952_orig_diff_sc[i] ~ dnorm(z[i], tauu)
+
+
+
   }
-  
+
   # prior distributions
   beta ~ dmnorm(rep(0, p), prec)
-  g1 ~  dnorm(0, 0.1)
-  g2 ~  dnorm(0, 0.1)
-  
+  g ~  dnorm(0, 0.1)
 
-  
+
+
+
   # prior distributions error model
   tau.y ~ dgamma(0.01, 0.01)
-  tauu1 ~ dgamma(0.01, 0.01)
-  tauu2 ~ dgamma(0.01, 0.01)
-  taue1 ~  dgamma(0.01, 0.01)
-  taue2 ~  dgamma(0.01, 0.01)
-  
-  
-  
+  tauu ~ dgamma(0.01, 0.01)
+  taue ~  dgamma(0.01, 0.01)
+
+
+
+
 }"
 
 
 
 ## Build the dataset to fit JAGS model
-data.jags <- list(y = as.vector(data$fatigue_mean_intensity_score_diff_sc), n = length(data$fatigue_mean_intensity_score_diff_sc), 
+data.jags <- list(y = as.vector(data$fatigue_mean_intensity_score_diff_sc), n = length(data$fatigue_mean_intensity_score_diff_sc),
                   mvpa_avg_as_is_1952_orig_diff_sc = as.vector(data$mvpa_avg_as_is_1952_orig_diff_sc),
-                  mean_activity_bout_duration10_diff_sc = as.vector(data$mean_activity_bout_duration10_diff_sc), X.mat = X.mat, p = ncol(X.mat), prec = diag(rep(0.01,ncol(X.mat))))
+                  X.mat = X.mat, p = ncol(X.mat), prec = diag(rep(0.01,ncol(X.mat))))
 
 # Intilialize JAGS model
 jags.mod <- jags.model(textConnection(model_string), data = data.jags,
@@ -135,13 +131,13 @@ jags.mod <- jags.model(textConnection(model_string), data = data.jags,
 update(jags.mod, n.burn = 10000)
 
 # Obtain JAGS samples
-samples.jags <- jags.samples(jags.mod, c("beta", "g1", "g2","tauu1", "tauu2"), n.iter = 15000, thin = 15)
+samples.jags <- jags.samples(jags.mod, c("beta", "g","tauu"), n.iter = 15000, thin = 15)
 samples.jags
 
 ## Obtain posterior samples as a mcmc.list object
-samples.coda <- coda.samples(jags.mod, c("beta", "g1", "g2","tauu1", "tauu2"), n.iter = 50000, thin = 200)
+samples.coda <- coda.samples(jags.mod, c("beta", "g","tauu"), n.iter = 15000, thin = 15)
 samples.array <- as.array(samples.coda)
-dimnames(samples.array)[[2]] <- c(colnames(X.mat),"g1", "g2","tauu1", "tauu2")
+dimnames(samples.array)[[2]] <- c(colnames(X.mat),"g","tauu")
 
 
 ## Traceplots for the parameter estimates
@@ -149,13 +145,11 @@ par(mfrow = c(3, 3))
 for(i in 1:ncol(samples.array)){
   traceplot(mcmc(samples.array[,i]),main = dimnames(samples.array)$var[i])
 }
-#traceplot(mcmc(samples.array[,ncol(X.mat)]), main = "g")
+#traceplot(mcmc(samples.array[,ncol(samples.array)]), main = "tauu")
 
 #ACF plot for gamma
-acf(samples.array[,(ncol(samples.array)-3)], main = "g1")
-acf(samples.array[,(ncol(samples.array)-2)], main = "g2")
-acf(samples.array[,(ncol(samples.array)-1)], main = "tauu1")
-acf(samples.array[,(ncol(samples.array))], main = "tauu2")
+acf(samples.array[,(ncol(samples.array)-1)], main = "g")
+acf(samples.array[,(ncol(samples.array))], main = "tauu")
 
 ## effect sample sizes
 par(mfrow=c(1,1))
