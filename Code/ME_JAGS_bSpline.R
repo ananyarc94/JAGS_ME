@@ -478,7 +478,7 @@ for(pa in pa_vars){
 
 # pdf(file = "./figures/factor_by_curve_varying_intercept/EstimatedCurve_Intensity_JAGS.pdf",
 #     width = 10, height = 4.5)
-png(file="./plots/fatigue_comparison.png", width=600, height=350)
+png(file="./plots/Bsplines/fatigue_comparison.png", width=600, height=350)
 do.call("grid.arrange", c(glist, nrow = floor(sqrt(length(glist)))))
 dev.off()
 
@@ -512,16 +512,16 @@ for(cov in 1:10){
   g4_list[[cov]] <- ggplot(as.data.frame(g4_mat[ ,cov]), aes(x = 1:1000, y = g4_mat[ ,cov])) + geom_line() + xlab("Index")+
     ggtitle(paste("ABD_I_knot",cov))+ylab("")
 }
-png(file="./plots/MVPA_C.png", width=600, height=350)
+png(file="./plots/Bsplines/MVPA_C.png", width=600, height=350)
 do.call("grid.arrange", c(g1_list, nrow = 3))
 dev.off()
-png(file="./plots/MVPA_I.png", width=600, height=350)
+png(file="./plots/Bsplines/MVPA_I.png", width=600, height=350)
 do.call("grid.arrange", c(g2_list, nrow = 3))
 dev.off()
-png(file="./plots/ABD_C.png", width=600, height=350)
+png(file="./plots/Bsplines/ABD_C.png", width=600, height=350)
 do.call("grid.arrange", c(g3_list, nrow = 3))
 dev.off()
-png(file="./plots/ABD_I.png", width=600, height=350)
+png(file="./plots/Bsplines/ABD_I.png", width=600, height=350)
 do.call("grid.arrange", c(g4_list, nrow = 3))
 dev.off()
 
@@ -564,15 +564,15 @@ for(cov in c(11:13, 18:20)){
     ggtitle(paste(covariates[cov]))+ylab("")
   k = k+1
 }
-png(file="./plots/int.time.png", width=600, height=350)
+png(file="./plots/Bsplines/int.time.png", width=600, height=350)
 do.call("grid.arrange", c(int.time.list, nrow = 3))
 dev.off()
-png(file="./plots/ageBMIfatigue_comparison.png", width=600, height=350)
+png(file="./plots/Bsplines/ageBMIfatigue_comparison.png", width=600, height=350)
 do.call("grid.arrange", c(ageBMI.list, nrow = 2))
 dev.off()
-png(file="./plots/ht_sample.png", width=600, height=350)
+png(file="./plots/Bsplines/ht_sample.png", width=600, height=350)
 do.call("grid.arrange", c(ht_sample.list, nrow = 2))
 dev.off()
-png(file="./plots/breast_sample.png", width=600, height=350)
+png(file="./plots/Bsplines/breast_sample.png", width=600, height=350)
 do.call("grid.arrange", c(breast_sample.list, nrow = 3))
 dev.off()
