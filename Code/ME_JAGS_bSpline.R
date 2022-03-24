@@ -1,5 +1,5 @@
 ################################################################################
-# This progrma creates a factor-by-curve interaction model on the simulated
+# This program creates a measurement error model on the simulated
 # data by creating a Bayesian graphical model with JAGS.
 ################################################################################
 
@@ -13,7 +13,8 @@ library(ggplot2)
 library(gridExtra)
 library(rjags)
 library(coda)
-library(bSpline)
+library(ggpubr)
+#library(bSpline)
 # Source functions
 function_directory <- getwd()
 source(paste0(function_directory, "/code/process_data.R"))
@@ -199,6 +200,11 @@ model_string <- "model {
   taue2 ~  dgamma(0.01, 0.01)
   taue3 ~  dgamma(0.01, 0.01)
   taue4 ~  dgamma(0.01, 0.01)
+
+  sigma_u1 <- 1/tauu1
+  sigma_u2 <- 1/tauu2
+  sigma_u3 <- 1/tauu3
+  sigma_u4 <- 1/tauu4
 }"
 
 #################################################################################
@@ -253,54 +259,12 @@ jm <- jags.model(textConnection(model_string), data = data.jags,
 update(jm, n.burn = 5000)
 
 # Obtain JAGS samples
-samples <- jags.samples(jm, c("b", "g1", "g2", "g3", "g4","scale"), n.iter = 3000, thin = 3)
+samples <- jags.samples(jm, c("b", "g1", "g2", "g3", "g4","sigma_u1","sigma_u2",
+                              "sigma_u3","sigma_u4","scale"), n.iter = 15000, thin = 5)
 
+samples.jags <- c(apply(samples$b, 1, mean),apply(samples$g1, 1, mean),apply(samples$g2, 1, mean),
+                  apply(samples$g3, 1, mean),apply(samples$g4, 1, mean))
 
-
-####################################################################
-## MCMC diagnostics
-####################################################################
-
-## Obtain posterior samples as a mcmc.list object
-samples.coda <- coda.samples(jm, c("b", "g1", "g2", "g3", "g4","scale"), n.iter = 50000, thin = 50)
-samples.array <- as.array(samples.coda)
-dimnames(samples.array)[[2]][1:20] <- colnames(X.mat)
-
-# ## Traceplots for covariates
-# par(mfrow = c(4, 5))
-# traceplot(mcmc(samples.array[,ind.cov]))
-
-## Traceplots for spline parameters
-par(mfrow = c(3,3))
-for(j in 1:61){
-  traceplot(mcmc(samples.array[,j]),main = dimnames(samples.array)$var[j])
-}
-
-
-## effect sample sizes
-par(mfrow=c(1,1))
-Neff <- effectiveSize(samples.coda)
-plot(1:length(Neff), Neff, xlab = "parameter")
-
-################################################################################
-# Or create JAGS code automatically to fit model using jagam()
-################################################################################
-# # Create JAGS code for model
-# jd <- jagam(as.formula(form), data = data.sim, family = gaussian,
-#             file = "./code/FBC_VI_model_test.jags")
-# jd$jags.data$y <- as.vector(jd$jags.data$y)
-# data.jags <- jd$jags.data
-#
-# # Initialize JAGS model
-# jm <- jags.model("./code/FBC_VI_model_test.jags", data = data.jags,
-#                  inits = list(.RNG.name = "base::Wichmann-Hill", .RNG.seed = 2021),
-#                  n.chains = 1, n.adapt = 1000)
-#
-# # specify number of burn-in
-# update(jm, n.burn = 5000)
-#
-# # Obtain samples
-# samples <- jags.samples(jm, c("b"), n.iter = 3000, thin = 3)
 
 ################################################################################
 # Organize the results
@@ -356,7 +320,7 @@ for(i in 1:(2*length(pa_vars))){
   ind.spl <- nc + ni + ((i-1)*nb+1):(i*nb)
 
   # Calculate estimated curve for each MCMC sample
-  fHat.all <- X.mat.full[,ind.spl] %*% apply(samples$g1, 1, mean)
+  fHat.all <- X.mat.full[,ind.spl] %*% samples.jags[ind.spl]
 
   # Backtransform estimated curves into original units
   fHat.tilde <- fHat.all * sd(data[ , y]) + mean(data[ , y])
@@ -466,7 +430,7 @@ for(pa in pa_vars){
 
   # Create plot and save to list
   glist[[pa]] <- ggplot(est.df, aes(x = x, y = s.x, group = type, color = type)) +
-    geom_line() + theme_bw() + ylim(-1.8, 2.6) +
+    geom_line() + theme_bw()  +
     geom_rug(aes(x = x), sides = "b", color = "black") +
     labs(x = xlab, y = ylab, title = plot.title[J]) +
     theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
@@ -478,10 +442,24 @@ for(pa in pa_vars){
 
 # pdf(file = "./figures/factor_by_curve_varying_intercept/EstimatedCurve_Intensity_JAGS.pdf",
 #     width = 10, height = 4.5)
-png(file="./plots/Bsplines/fatigue_comparison.png", width=600, height=350)
+png(file="./plots/Bsplines/fatigue_comparison_1.png", width=600, height=350)
 do.call("grid.arrange", c(glist, nrow = floor(sqrt(length(glist)))))
 dev.off()
 
+
+####################################################################
+## MCMC diagnostics
+####################################################################
+
+## Obtain posterior samples as a mcmc.list object
+samples.coda <- coda.samples(jm, c("b", "g1", "g2", "g3", "g4","sigma_u1","sigma_u2",
+                                   "sigma_u3","sigma_u4","scale"), n.iter = 50000, thin = 50)
+samples.array <- as.array(samples.coda)
+dimnames(samples.array)[[2]][1:ncol(X.mat)] <- colnames(X.mat)
+write.csv(samples.array, "C:/Users/anany/Desktop/JAGSME/Code/samples.bspline.csv")
+
+
+#matrices to store the g values for the (k-1) knots
 
 g1_mat = matrix(NA, 1000,10)
 g2_mat = matrix(NA, 1000,10)
@@ -498,32 +476,47 @@ colnames(g2_mat) <- colnames(W1_I.mat)
 colnames(g3_mat) <- colnames(W2_C.mat)
 colnames(g4_mat) <- colnames(W2_I.mat)
 
-g1_list <- list()
-g2_list <- list()
-g3_list <- list()
-g4_list <- list()
-for(cov in 1:10){
-  g1_list[[cov]] <- ggplot(as.data.frame(g1_mat[ ,cov]), aes(x = 1:1000, y = g1_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste("MVPA_C_knot",cov))+ylab("")
-  g2_list[[cov]] <- ggplot(as.data.frame(g2_mat[ ,cov]), aes(x = 1:1000, y = g2_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste("MVPA_I_knot",cov))+ylab("")
-  g3_list[[cov]] <- ggplot(as.data.frame(g3_mat[ ,cov]), aes(x = 1:1000, y = g3_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste("ABD_C_knot",cov))+ylab("")
-  g4_list[[cov]] <- ggplot(as.data.frame(g4_mat[ ,cov]), aes(x = 1:1000, y = g4_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste("ABD_I_knot",cov))+ylab("")
-}
-png(file="./plots/Bsplines/MVPA_C.png", width=600, height=350)
-do.call("grid.arrange", c(g1_list, nrow = 3))
+#creating the list of traceplots corresponding to the posterior distributions
+#at each knot point for each g parameter
+g1_list <- lapply(1:10, function(i) {
+  ggplot(data = as.data.frame(g1_mat[ ,i]), aes(x = 1:1000, y = g1_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(paste("MVPA_C_k_",i))+ylab(NULL)
+})
+
+g2_list <- lapply(1:10, function(i) {
+  ggplot(data = as.data.frame(g2_mat[ ,i]), aes(x = 1:1000, y = g2_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(paste("MVPA_I_k_",i))+ylab(NULL)
+})
+g3_list <- lapply(1:10, function(i) {
+  ggplot(data = as.data.frame(g3_mat[ ,i]), aes(x = 1:1000, y = g3_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(paste("ABD_C_k_",i))+ylab(NULL)
+})
+g4_list <- lapply(1:10, function(i) {
+  ggplot(data = as.data.frame(g4_mat[ ,i]), aes(x = 1:1000, y = g4_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(paste("ABD_I_k_",i))+ylab(NULL)
+})
+
+#saving the plots as .png files
+png(file="./plots/Bsplines/MVPA_C.png")
+ggarrange(plotlist = g1_list, nrow = 3, ncol = 4)
 dev.off()
-png(file="./plots/Bsplines/MVPA_I.png", width=600, height=350)
-do.call("grid.arrange", c(g2_list, nrow = 3))
+png(file="./plots/Bsplines/MVPA_I.png")
+ggarrange(plotlist = g2_list, nrow = 3, ncol = 4)
 dev.off()
-png(file="./plots/Bsplines/ABD_C.png", width=600, height=350)
-do.call("grid.arrange", c(g3_list, nrow = 3))
+png(file="./plots/Bsplines/ABD_C.png")
+ggarrange(plotlist = g3_list, nrow = 3, ncol = 4)
 dev.off()
-png(file="./plots/Bsplines/ABD_I.png", width=600, height=350)
-do.call("grid.arrange", c(g4_list, nrow = 3))
+png(file="./plots/Bsplines/ABD_I.png")
+ggarrange(plotlist = g4_list, nrow = 3, ncol = 4)
 dev.off()
+
+#creating the list of traceplots corresponding to the posterior distributions
+#of each beta parameter ordered by interval time, age and BMI, hormone treatment
+# and cancer sample
 
 beta_mat = matrix(NA, 1000, 20)
 for(i in 1:20){
@@ -531,48 +524,56 @@ for(i in 1:20){
 }
 
 colnames(beta_mat) = colnames(X.mat)
-int.time.list <- list()
-ageBMI.list <- list()
-ht_sample.list <- list()
-breast_sample.list <- list()
-
-
 covariates <- colnames(X.mat)
-for(cov in 1:6){
-  int.time.list[[cov]] <- ggplot(as.data.frame(beta_mat[ ,cov]), aes(x = 1:1000, y = beta_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste(covariates[cov]))+ylab("")
-}
 
-k = 1
-for(cov in c(7,8,14,15)){
-  #print(paste("cov = ", cov, head(beta_mat[ ,cov])))
-  ageBMI.list[[k]] <- ggplot(as.data.frame(beta_mat[ ,cov]), aes(x = 1:1000, y = beta_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste(covariates[cov]))+ylab("")
-  k = k+1
-}
+int.time.list <- lapply(1:6, function(i) {
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(covariates[i])+ylab(NULL)
+})
 
-k = 1
-for(cov in c(9,10,16,17)){
-  ht_sample.list[[k]] <- ggplot(as.data.frame(beta_mat[ ,cov]), aes(x = 1:1000, y = beta_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste(covariates[cov]))+ylab("")
-  k = k+1
-}
+ageBMI.list <- lapply(c(7,8,14,15), function(i) {
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(covariates[i])+ylab(NULL)
+})
 
-k = 1
-for(cov in c(11:13, 18:20)){
-  breast_sample.list[[k]] <- ggplot(as.data.frame(beta_mat[ ,cov]), aes(x = 1:1000, y = beta_mat[ ,cov])) + geom_line() + xlab("Index")+
-    ggtitle(paste(covariates[cov]))+ylab("")
-  k = k+1
-}
-png(file="./plots/Bsplines/int.time.png", width=600, height=350)
-do.call("grid.arrange", c(int.time.list, nrow = 3))
+ht_sample.list <- lapply(c(9,10,16,17), function(i) {
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(covariates[i])+ylab(NULL)
+})
+
+breast_sample.list <- lapply(c(11:13,18:20), function(i) {
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(covariates[i])+ylab(NULL)
+})
+
+#saving the plots as .png files
+png(file="./plots/Bsplines/int.time.png")
+ggarrange(plotlist = int.time.list, nrow = 3, ncol = 2)
 dev.off()
-png(file="./plots/Bsplines/ageBMIfatigue_comparison.png", width=600, height=350)
-do.call("grid.arrange", c(ageBMI.list, nrow = 2))
+png(file="./plots/Bsplines/ageBMI.png")
+ggarrange(plotlist = ageBMI.list, nrow = 2, ncol = 2)
 dev.off()
-png(file="./plots/Bsplines/ht_sample.png", width=600, height=350)
-do.call("grid.arrange", c(ht_sample.list, nrow = 2))
+png(file="./plots/Bsplines/ht_sample.png")
+ggarrange(plotlist = ht_sample.list, nrow = 2, ncol = 2)
 dev.off()
-png(file="./plots/Bsplines/breast_sample.png", width=600, height=350)
-do.call("grid.arrange", c(breast_sample.list, nrow = 3))
+png(file="./plots/Bsplines/breast_sample.png")
+ggarrange(plotlist = breast_sample.list, nrow = 3, ncol = 2)
+dev.off()
+
+#creating the list of traceplots corresponding to the posterior distributions
+#of the precision parameters of the overall fatigue intensity and the
+#measurement error variable
+sigmas.list <- lapply(61:65, function(i) {
+  ggplot(data = as.data.frame(samples.array[ ,i]), aes(x = 1:1000, y = samples.array[ ,i] ))+
+    geom_line() + xlab("Index (B-S)")+
+    ggtitle(colnames(samples.array)[i])+ylab(NULL)
+})
+
+#saving the plots as .png files
+png(file="./plots/Bsplines/sigma_plots.png")
+ggarrange(plotlist = sigmas.list, nrow = 2, ncol = 3)
 dev.off()
