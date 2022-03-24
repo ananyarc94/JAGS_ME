@@ -1,0 +1,25 @@
+model {
+  mu <- X %*% b ## expected response
+  for (i in 1:n) { y[i] ~ dnorm(mu[i],tau) } ## response 
+  scale <- 1/tau ## convert tau to standard GLM scale
+  tau ~ dgamma(.05,.005) ## precision parameter prior 
+  ## Parametric effect priors CHECK tau=1/24^2 is appropriate!
+  for (i in 1:20) { b[i] ~ dnorm(0,0.0018) }
+  ## prior for s(mvpa_avg_as_is_1952_orig_diff_sc):as.factor(Randomization)0... 
+  for (i in c(21:29)) { b[i] ~ dnorm(0, lambda[1]) }
+  for (i in c(30)) { b[i] ~ dnorm(0, lambda[2]) }
+  ## prior for s(mvpa_avg_as_is_1952_orig_diff_sc):as.factor(Randomization)1... 
+  for (i in c(31:39)) { b[i] ~ dnorm(0, lambda[3]) }
+  for (i in c(40)) { b[i] ~ dnorm(0, lambda[4]) }
+  ## prior for s(mean_activity_bout_duration10_diff_sc):as.factor(Randomization)0... 
+  for (i in c(41:49)) { b[i] ~ dnorm(0, lambda[5]) }
+  for (i in c(50)) { b[i] ~ dnorm(0, lambda[6]) }
+  ## prior for s(mean_activity_bout_duration10_diff_sc):as.factor(Randomization)1... 
+  for (i in c(51:59)) { b[i] ~ dnorm(0, lambda[7]) }
+  for (i in c(60)) { b[i] ~ dnorm(0, lambda[8]) }
+  ## smoothing parameter priors CHECK...
+  for (i in 1:8) {
+    lambda[i] ~ dgamma(.05,.005)
+    rho[i] <- log(lambda[i])
+  }
+}
