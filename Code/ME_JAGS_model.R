@@ -14,8 +14,8 @@ library(dplyr)
 
 # Source functions
 function_directory <- getwd()
-source(paste0(function_directory, "/process_data.R"))
-source(paste0(function_directory, "/plot_gam.R"))
+source(paste0(function_directory, "/code/process_data.R"))
+source(paste0(function_directory, "/code/plot_gam.R"))
 
 #################################################################################
 # Define variable and process data for analysis
@@ -23,10 +23,10 @@ source(paste0(function_directory, "/plot_gam.R"))
 
 #### Old data analysis 8/25/21
 # Load the data
-sim_data <- read.csv(paste0(function_directory, "/simulated_data_2021.08.25.csv"))
+sim_data <- read.csv(paste0(function_directory, "/code/simulated_data_2021.08.25.csv"))
 
 # Fix the fatigue values that differ from updated dataset
-sim_data.new <- read.csv(paste0(function_directory, "/simulated_data_2021.12.21.csv"))
+sim_data.new <- read.csv(paste0(function_directory, "/code/simulated_data_2021.12.21.csv"))
 sim_data$fatigue_mean_intensity_score <- sim_data.new$fatigue_mean_intensity_score
 sim_data$fatigue_mean_interference_score <- sim_data.new$fatigue_mean_interference_score
 
@@ -128,16 +128,16 @@ jags.mod <- jags.model(textConnection(model_string), data = data.jags,
                        n.chains = 1, n.adapt = 1000)
 
 # Specify number of burn-in
-update(jags.mod, n.burn = 10000)
+update(jags.mod, n.burn = 5000)
 
 # Obtain JAGS samples
-samples.jags <- jags.samples(jags.mod, c("beta", "g","tauu"), n.iter = 15000, thin = 15)
+samples.jags <- jags.samples(jags.mod, c("beta", "g","tauu", "tau.y"), n.iter = 50000, thin = 50)
 samples.jags
 
 ## Obtain posterior samples as a mcmc.list object
-samples.coda <- coda.samples(jags.mod, c("beta", "g","tauu"), n.iter = 15000, thin = 15)
+samples.coda <- coda.samples(jags.mod, c("beta", "g","tauu", "tau.y"), n.iter = 50000, thin = 50)
 samples.array <- as.array(samples.coda)
-dimnames(samples.array)[[2]] <- c(colnames(X.mat),"g","tauu")
+dimnames(samples.array)[[2]] <- c(colnames(X.mat),"g","tauu","tau.y")
 
 
 ## Traceplots for the parameter estimates
@@ -155,4 +155,37 @@ acf(samples.array[,(ncol(samples.array))], main = "tauu")
 par(mfrow=c(1,1))
 Neff <- effectiveSize(samples.coda)
 plot(1:length(Neff), Neff, main = "Effective sample size", xlab = "parameter")
+
+
+
+beta.list <- lapply(1:20, function(i) {
+  ggplot(data = as.data.frame(samples.array[ ,i]), aes(x = 1:1000, y = samples.array[ ,i] ))+
+    geom_line() + xlab("Index") +  theme_bw()+
+    ggtitle(colnames(samples.array)[i])+ylab(NULL)
+})
+
+png(file="./plots/1var/beta_1.png")
+ggarrange(plotlist = beta.list, nrow = 4, ncol = 3)$`1`
+dev.off()
+
+png(file="./plots/1var/beta_2.png")
+ggarrange(plotlist = beta.list, nrow = 4, ncol = 3)$`2`
+dev.off()
+
+g <-  ggplot(data = as.data.frame(samples.array[ ,21]), aes(x = 1:1000, y = samples.array[ ,21] ))+
+    geom_line() + xlab("Index")+  theme_bw() +
+    ggtitle(colnames(samples.array)[21])+ylab(NULL)
+
+tau.u <-  ggplot(data = as.data.frame(samples.array[ ,22]), aes(x = 1:1000, y = samples.array[ ,22] ))+
+  geom_line() + xlab("Index")+  theme_bw() + ylim(0,50)+
+  ggtitle(colnames(samples.array)[22])+ylab(NULL)
+
+tau.y <- ggplot(data = as.data.frame(samples.array[ ,23]), aes(x = 1:1000, y = samples.array[ ,23] ))+
+  geom_line() + xlab("Index")+  theme_bw() + ylim(0,10)+
+  ggtitle(colnames(samples.array)[23])+ylab(NULL)
+
+png(file="./plots/1var/g_and_sigma_plots.png")
+grid.arrange(g, tau.u, tau.y, nrow = 2, ncol = 2)
+dev.off()
+
 

@@ -1,5 +1,5 @@
 ################################################################################
-# This progrma creates a factor-by-curve interaction model on the simulated
+# This program creates a factor-by-curve interaction model on the simulated
 # data by creating a Bayesian graphical model with JAGS.
 ################################################################################
 
@@ -16,7 +16,7 @@ library(coda)
 library(recipes)
 library(ggpubr)
 # Source functions
-function_directory <- getwd()
+function_directory <- setwd("C:/Users/anany/Desktop/JAGSME")
 source(paste0(function_directory, "/code/process_data.R"))
 
 #################################################################################
@@ -97,8 +97,8 @@ xI <- as.matrix(dataI[ , pa_vars], ncol = length(pa_vars))
 X <- rbind(xC[c(t1.C, t2.C, t3.C),], xI[c(t1.I, t2.I, t3.I),])
 
 ### Reorder matrix for other covariates
-zC <- as.matrix(dataC[ , covars[grepl(".C", covars)]])
-zI <- as.matrix(dataI[ , covars[grepl(".I", covars)]])
+zC <- as.matrix(dataC[ , covars[grepl(".C", covars, fixed = TRUE)]]) # made change here!!!!
+zI <- as.matrix(dataI[ , covars[grepl(".I", covars, fixed = TRUE)]])
 Z <- cbind(rbind(zC[c(t1.C, t2.C, t3.C),], matrix(0, nrow = nrow(zI), ncol = ncol(zC))),
            rbind(matrix(0, nrow = nrow(zC), ncol = ncol(zI)), zI[c(t1.I, t2.I, t3.I),]))
 
@@ -119,25 +119,26 @@ data.sim[, covars[grepl("age", covars)]] <- apply(data.sim[, covars[grepl("age",
 # Build the model
 #################################################################################
 # #convert the categorical covariates into dummy variables
-rec_obj <- recipe(fatigue_mean_intensity_score_diff_sc ~ ., data = data)
+rec_obj <- recipe(fatigue_mean_intensity_score_diff_sc ~ ., data = data.sim) # made change here!!!
 ind_vars <- rec_obj %>%
   step_dummy(all_nominal_predictors())
-trained_rec <- prep(ind_vars, training = data)
-train_data <- bake(trained_rec, new_data = data)
+trained_rec <- prep(ind_vars, training = data.sim)
+train_data <- bake(trained_rec, new_data = data.sim)
 
-#Creating the column for interval 1
-int2 = which(X.mat$int.time_X2 == 1)
-int3 = which(X.mat$int.time_X3 == 1)
-int4 = which(X.mat$int.time_X4 == 1)
-int5 = which(X.mat$int.time_X5 == 1)
-int6 = which(X.mat$int.time_X6 == 1)
-int1 = setdiff(1:275, sort(c(int2, int3, int4, int5, int6)))
+# #Creating the column for interval 1
+# int2 = which(X.mat$int.time_X2 == 1)
+# int3 = which(X.mat$int.time_X3 == 1)
+# int4 = which(X.mat$int.time_X4 == 1)
+# int5 = which(X.mat$int.time_X5 == 1)
+# int6 = which(X.mat$int.time_X6 == 1)
+# int1 = setdiff(1:275, sort(c(int2, int3, int4, int5, int6)))
 
 int.time_X1 = rep(0, nrow(train_data))
 int.time_X1[int1] = 1
 
 #selecting the relevant columns to form the design matrix X
-X.mat <- data.frame(int.time_X1,train_data[, c(34:38, 23,24, 39:50)])
+# X.mat <- data.frame(int.time_X1,train_data[, c(34:38, 23,24, 39:50)])
+X.mat <- data.frame(int.time_X1,train_data[, c(19:23, 1, 2, 7:18)])
 
 #splitting up the MVPA and ABD into the control and treatment groups
 MVPA_C <- ifelse(train_data$Randomization == 0, train_data$mvpa_avg_as_is_1952_orig_diff_sc, 0)
@@ -200,7 +201,12 @@ model_string <- "model{
   taue3 ~  dgamma(0.01, 0.01)
   taue4 ~  dgamma(0.01, 0.01)
 
-
+  # converting the precisions back to the variances
+  sigma_y <- 1/tau.y
+  sigma_u1 <- 1/tauu1
+  sigma_u2 <- 1/tauu2
+  sigma_u3 <- 1/tauu3
+  sigma_u4 <- 1/tauu4
 
 }"
 
@@ -222,7 +228,8 @@ jags.mod <- jags.model(textConnection(model_string), data = data.jags,
 update(jags.mod, n.burn = 5000)
 
 # Obtain JAGS samples
-samples.jags <- jags.samples(jags.mod, c("beta", "g1", "g2", "g3","g4","tauu1", "tauu2","tauu3", "tauu4", "tau.y"), n.iter = 50000, thin = 50)
+samples.jags <- jags.samples(jags.mod, c("beta", "g1", "g2", "g3","g4","sigma_u1","sigma_u2",
+                                         "sigma_u3","sigma_u4","sigma_y"), n.iter = 50000, thin = 50)
 samples.jags
 
 ################################################################################
@@ -413,9 +420,10 @@ dev.off()
 ####################################################################
 
 ## Obtain posterior samples as a mcmc.list object
-samples.coda <- coda.samples(jags.mod, c("beta", "g1 ", "g2","g3","g4","tauu1", "tauu2","tauu3", "tauu4", "tau.y"), n.iter = 50000, thin = 50)
+samples.coda <- coda.samples(jags.mod, c("beta", "g1 ", "g2","g3","g4","sigma_u1","sigma_u2",
+                                         "sigma_u3","sigma_u4","sigma_y"), n.iter = 50000, thin = 50)
 samples.array <- as.array(samples.coda)
-dimnames(samples.array)[[2]] <- c(colnames(X.mat),"MVPA_C", "MVPA_I","ABD_C","ABD_I","tauu1 for MVPA_C", "tauu2 for MVPA_I","tauu3 for ABD_C", "tauu4 for ABD_I", "tau.y")
+dimnames(samples.array)[[2]] <- c(colnames(X.mat),"MVPA_C", "MVPA_I","ABD_C","ABD_I","sigma_u1 for MVPA_C", "sigma_u2 for MVPA_I","sigma_u3 for ABD_C", "sigma_u4 for ABD_I", "sigma_y")
 
 ##matrix to store the g estimates
 g_mat = matrix(NA, 1000,4)
@@ -454,7 +462,7 @@ dev.off()
 ##creating the trace plots of the sigma estimates and saving them
 sigmas.list <- lapply((ncol(X.mat)+5):ncol(samples.array), function(i) {
   ggplot(data = as.data.frame(samples.array[ ,i]), aes(x = 1:1000, y = samples.array[ ,i] ))+
-    geom_line() + xlab("Index")+  theme_bw()+ ylim(0,50) +
+    geom_line() + xlab("Index")+  theme_bw() +
     ggtitle(colnames(samples.array)[i])+ylab(NULL)
 })
 png(file="./plots/2var/sigma_plots.png")
