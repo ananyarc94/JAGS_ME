@@ -259,8 +259,11 @@ jm <- jags.model(textConnection(model_string), data = data.jags,
 update(jm, n.burn = 5000)
 
 # Obtain JAGS samples
+start = Sys.time()
 samples <- jags.samples(jm, c("b", "g1", "g2", "g3", "g4","sigma_u1","sigma_u2",
-                              "sigma_u3","sigma_u4","scale"), n.iter = 15000, thin = 5)
+                              "sigma_u3","sigma_u4","scale"), n.iter = 50000, thin = 50)
+stop = Sys.time()
+time.elaspsed = stop - start; time.elaspsed
 
 samples.jags <- c(apply(samples$b, 1, mean),apply(samples$g1, 1, mean),apply(samples$g2, 1, mean),
                   apply(samples$g3, 1, mean),apply(samples$g4, 1, mean))
@@ -451,51 +454,59 @@ dev.off()
 ## MCMC diagnostics
 ####################################################################
 
-## Obtain posterior samples as a mcmc.list object
-samples.coda <- coda.samples(jm, c("b", "g1", "g2", "g3", "g4","sigma_u1","sigma_u2",
-                                   "sigma_u3","sigma_u4","scale"), n.iter = 50000, thin = 50)
-samples.array <- as.array(samples.coda)
-dimnames(samples.array)[[2]][1:ncol(X.mat)] <- colnames(X.mat)
+# ## Obtain posterior samples as a mcmc.list object
+# samples.coda <- coda.samples(jm, c("b", "g1", "g2", "g3", "g4","sigma_u1","sigma_u2",
+#                                    "sigma_u3","sigma_u4","scale"), n.iter = 50000, thin = 50)
+samples.array <- data.frame(t(samples$b[ , ,1]), t(samples$g1[ , ,1]), t(samples$g2[ , ,1]), t(samples$g3[ , ,1]), t(samples$g4[ , ,1]),
+                       samples$sigma_u1[ , ,1], samples$sigma_u2[ , ,1], samples$sigma_u3[ , ,1],
+                       samples$sigma_u4[ , ,1], samples$scale[ , ,1])
+for(i in 1:ncol(X.mat)){
+  colnames(samples.array)[i] <- colnames(X.mat)[i]
+}
+for(i in 1:10){
+  colnames(samples.array)[(ncol(X.mat)+i)] <- paste("MVPA_C_k_",i)
+  colnames(samples.array)[(ncol(X.mat)+(k-1)+i)] <- paste("MVPA_I_k_",i)
+  colnames(samples.array)[(ncol(X.mat)+2*(k-1)+i)] <- paste("ABD_C_k_",i)
+  colnames(samples.array)[(ncol(X.mat)+3*(k-1)+i)] <- paste("ABD_I_k_",i)
+}
+colnames(samples.array)[61:65] <- c("sigma_u1","sigma_u2", "sigma_u3","sigma_u4","sigma_y")
+
 write.csv(samples.array, "C:/Users/anany/Desktop/JAGSME/Code/samples.bspline.csv")
 
 
 #matrices to store the g values for the (k-1) knots
-
-g1_mat = matrix(NA, 1000,10)
-g2_mat = matrix(NA, 1000,10)
-g3_mat = matrix(NA, 1000,10)
-g4_mat = matrix(NA, 1000,10)
+n_row = ncol(samples$g1)
+g1_mat = matrix(NA, n_row,10)
+g2_mat = matrix(NA, n_row,10)
+g3_mat = matrix(NA, n_row,10)
+g4_mat = matrix(NA, n_row,10)
 for(i in 1:10){
-  g1_mat[,i ] <- samples.array[ ,20+i]
-  g2_mat[,i ] <- samples.array[ ,30+i]
-  g3_mat[,i ] <- samples.array[ ,40+i]
-  g4_mat[,i ] <- samples.array[ ,50+i]
+  g1_mat[,i ] <- samples$g1[i, ,1]
+  g2_mat[,i ] <- samples$g2[i, ,1]
+  g3_mat[,i ] <- samples$g3[i, ,1]
+  g4_mat[,i ] <- samples$g4[i, ,1]
 }
-colnames(g1_mat) <- colnames(W1_C.mat)
-colnames(g2_mat) <- colnames(W1_I.mat)
-colnames(g3_mat) <- colnames(W2_C.mat)
-colnames(g4_mat) <- colnames(W2_I.mat)
 
 #creating the list of traceplots corresponding to the posterior distributions
 #at each knot point for each g parameter
 g1_list <- lapply(1:10, function(i) {
-  ggplot(data = as.data.frame(g1_mat[ ,i]), aes(x = 1:1000, y = g1_mat[ ,i] ))+
+  ggplot(data = as.data.frame(g1_mat[ ,i]), aes(x = 1:n_row, y = g1_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("MVPA_C_k_",i))+ylab(NULL)
 })
 
 g2_list <- lapply(1:10, function(i) {
-  ggplot(data = as.data.frame(g2_mat[ ,i]), aes(x = 1:1000, y = g2_mat[ ,i] ))+
+  ggplot(data = as.data.frame(g2_mat[ ,i]), aes(x = 1:n_row, y = g2_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("MVPA_I_k_",i))+ylab(NULL)
 })
 g3_list <- lapply(1:10, function(i) {
-  ggplot(data = as.data.frame(g3_mat[ ,i]), aes(x = 1:1000, y = g3_mat[ ,i] ))+
+  ggplot(data = as.data.frame(g3_mat[ ,i]), aes(x = 1:n_row, y = g3_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("ABD_C_k_",i))+ylab(NULL)
 })
 g4_list <- lapply(1:10, function(i) {
-  ggplot(data = as.data.frame(g4_mat[ ,i]), aes(x = 1:1000, y = g4_mat[ ,i] ))+
+  ggplot(data = as.data.frame(g4_mat[ ,i]), aes(x = 1:n_row, y = g4_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("ABD_I_k_",i))+ylab(NULL)
 })
@@ -518,34 +529,34 @@ dev.off()
 #of each beta parameter ordered by interval time, age and BMI, hormone treatment
 # and cancer sample
 
-beta_mat = matrix(NA, 1000, 20)
+beta_mat = matrix(NA, n_row, 20)
 for(i in 1:20){
-  beta_mat[ , i] =  samples.array[ ,i]
+  beta_mat[ , i] =  samples$b[i, ,1]
 }
 
 colnames(beta_mat) = colnames(X.mat)
 covariates <- colnames(X.mat)
 
 int.time.list <- lapply(1:6, function(i) {
-  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:n_row, y = beta_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(covariates[i])+ylab(NULL)
 })
 
 ageBMI.list <- lapply(c(7,8,14,15), function(i) {
-  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:n_row, y = beta_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(covariates[i])+ylab(NULL)
 })
 
 ht_sample.list <- lapply(c(9,10,16,17), function(i) {
-  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:n_row, y = beta_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(covariates[i])+ylab(NULL)
 })
 
 breast_sample.list <- lapply(c(11:13,18:20), function(i) {
-  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:1000, y = beta_mat[ ,i] ))+
+  ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:n_row, y = beta_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(covariates[i])+ylab(NULL)
 })
@@ -567,10 +578,18 @@ dev.off()
 #creating the list of traceplots corresponding to the posterior distributions
 #of the precision parameters of the overall fatigue intensity and the
 #measurement error variable
-sigmas.list <- lapply(61:65, function(i) {
-  ggplot(data = as.data.frame(samples.array[ ,i]), aes(x = 1:1000, y = samples.array[ ,i] ))+
-    geom_line() + xlab("Index (B-S)")+
-    ggtitle(colnames(samples.array)[i])+ylab(NULL)
+sigma_mat = matrix(NA, n_row, 5)
+sigma_mat[ ,1] <- samples$sigma_u1[1, ,1]
+sigma_mat[ ,2] <- samples$sigma_u2[1, ,1]
+sigma_mat[ ,3] <- samples$sigma_u3[1, ,1]
+sigma_mat[ ,4] <- samples$sigma_u4[1, ,1]
+sigma_mat[ ,5] <- samples$scale[1, ,1]
+s2_names <- c("sigma_u1 for MVPA_C", "sigma_u2 for MVPA_I","sigma_u3 for ABD_C", "sigma_u4 for ABD_I", "sigma_y")
+
+sigmas.list <- lapply(1:5, function(i) {
+  ggplot(data = as.data.frame(sigma_mat[ ,i]), aes(x = 1:n_row, y = sigma_mat[ ,i] ))+
+    geom_line() + xlab("Index(B-S)")+  theme_bw() +
+    ggtitle(s2_names[i])+ylab(NULL)
 })
 
 #saving the plots as .png files
