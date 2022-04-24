@@ -117,47 +117,106 @@ data.sim[, covars[grepl("age", covars)]] <- apply(data.sim[, covars[grepl("age",
 #################################################################################
 # Define JAGS model
 #################################################################################
-## nc: number of covariates
-## ni: number of intercepts
-## k: number of knots per spline
+## nc+ni: number of covariates
+## k+1: number of control points per spline
+## D: degrees of the spline
+## m+1: number of knots per spline
+## Y: fatigue intensity
+## X: covariates
+## B.z1_C: basis functions for MVPA of control group
+## B.z1_I: basis functions for MVPA of treatment group
+## B.z2_C: basis functions for ABD of control group
+## B.z2_I: basis functions for ABD of treatment group
 
 model_string <- "model {
 
   # Likelihood (deign matrix %*% matrix of parameters to estimate)
-  mu <- X %*% b + z1_C %*% g1 + z1_I %*% g2 + z2_C %*% g3 + z2_I %*% g4  ## expected response
-                                                                         ## Z1 = actual MVPA for trt & control groups
-                                                                         ## Z2 = actual ABD for trt & control groups
-          ### temp's are the values of the basis functions evaluated at that Z
+  mu <- X %*% b + B.z1_C %*% g1 + B.z1_I %*% g2 + B.z2_C %*% g3 + B.z2_I %*% g4  ## expected response
 
   for (i in 1:n){
   ## response model
-  y[i] ~ dnorm(mu[i],tau)
+    y[i] ~ dnorm(mu[i],tau)
 
-    temp1[i] ~ dnorm(0, taue1)
-    temp2[i] ~ dnorm(0, taue2)
-    temp3[i] ~ dnorm(0, taue3)
-    temp4[i] ~ dnorm(0, taue4)
+  ## drawing the latent variables
+    z1_C[i] ~ dnorm(0, taue1)
+    z1_I[i] ~ dnorm(0, taue2)
+    z2_C[i] ~ dnorm(0, taue3)
+    z2_I[i] ~ dnorm(0, taue4)
   }
-  # S(MVPA) model for control group
-  Z1_C = bs(temp1, knots = (k-2))
 
-  # S(MVPA) model for treatment group
-  Z1_I = bs(temp2, knots = (k-2))
+ ## creating the basis functions for the Bsplines
+    for(i in 1:(M+1)){
+    # knots for S(MVPA) model for control group
+    knot.1_C[i] <- z1_C[knot.position[i]]
 
-  # S(mean ABD) model for  control group
-  Z2_C = bs(temp3, knots = (k-2))
+    # knots for S(MVPA) model for treatment group
+    knot.1_I[i] <- z1_I[knot.position[i]]
 
-  # S(mean ABD) model for treatment group
-  Z2_I = bs(temp4, knots = (k-2))
+    # knots for S(ABD) model for control group
+    knot.2_C[i] <- z2_C[knot.position[i]]
+
+    # knots for S(ABD) model for treatment group
+    knot.2_I[i] <- z2_I[knot.position[i]]
+
+  }
+
+    for(p in 1:n){
+      for(m in 1:M){
+       #declaring the first layer of basis functions
+        N1_C[m,1] <- ifelse(z1_C[p] >= knot.1_C[m] && z1_C[p] <= knot.1_C[m+1], 1, 0)
+        N1_I[m,1] <- ifelse(z1_I[p] >= knot.1_I[m] && z1_I[p] <= knot.1_I[m+1], 1, 0)
+        N2_C[m,1] <- ifelse(z2_C[p] >= knot.2_C[m] && z2_C[p] <= knot.2_C[m+1], 1, 0)
+        N2_I[m,1] <- ifelse(z2_I[p] >= knot.2_I[m] && z2_I[p] <= knot.2_I[m+1], 1, 0)
+      }
+
+    #declaring the other layers of basis functions
+      for(d in 2:(D+1)){
+        for(m in 1:(M-d+1)){
+
+      #S(MVPA) model for control group
+        N1_C[m,d] <-  ((z1_C[p] - knot.1_C[m])/(knot.1_C[m+d-1] - knot.1_C[m]))*N1_C[m,d-1]
+                   + ((knot.1_C[m+d] - z1_C[p])/(knot.1_C[m+d] - knot.1_C[m+1]))*N1_C[m+1,d-1]
+
+      #S(MVPA) model for treatment group
+        N1_I[m,d] <- ((z1_I[p] - knot.1_I[m])/(knot.1_I[m+d-1] - knot.1_I[m]))*N1_I[m,d-1]
+                  + ((knot.1_I[m+d] - z1_I[p])/(knot.1_I[m+d] - knot.1_I[m+1]))*N1_I[m+1,d-1]
+
+      #S(ABD) model for control group
+        N2_C[m,d] <- ((z2_C[p] - knot.2_C[m])/(knot.2_C[m+d-1] - knot.2_C[m]))*N2_C[m,d-1]
+                  + ((knot.2_C[m+d] - z2_C[p])/(knot.2_C[m+d] - knot.2_C[m+1]))*N2_C[m+1,d-1]
+
+      #S(ABD) model for treatment group
+        N2_I[m,d] <- ((z2_I[p] - knot.2_I[m])/(knot.2_I[m+d-1] - knot.2_I[m]))*N2_I[m,d-1]
+                  + ( (knot.2_I[m+d] - z2_I[p])/(knot.2_I[m+d] - knot.2_I[m+1]))*N2_I[m+1,d-1]
+      }
+
+   }
+
+    for(r in 1:(k+1)){
+
+    #S(MVPA) model for control group
+      B.z1_C[p,r] <- N1_C[r, D+1]
+
+    #S(MVPA) model for treatment group
+      B.z1_I[p,r] <- N1_I[r, D+1]
+
+    #S(ABD) model for control group
+      B.z2_C[p,r] <- N2_C[r, D+1]
+
+    #S(ABD) model for treatment group
+      B.z2_I[p,r] <- N2_I[r, D+1]
+    }
+
+  }
 
 
- # classical measurement error model
+ ## classical measurement error model
  for(i in 1:n){
-  for(j in 1:(k-1)){
-    W1_C[i,j] ~ dnorm(z1_C[i, j], tauu1)
-    W1_I[i,j] ~ dnorm(z1_I[i, j], tauu2)
-    W2_C[i,j] ~ dnorm(z2_C[i, j] , tauu3)
-    W2_I[i,j] ~ dnorm(z2_I[i, j], tauu4)
+  for(j in 1:(k+1)){
+    W1_C[i,j] ~ dnorm(B.z1_C[i, j]*g1[j], tauu1)
+    W1_I[i,j] ~ dnorm(B.z1_I[i, j]*g2[j], tauu2)
+    W2_C[i,j] ~ dnorm(B.z2_C[i, j]*g3[j] , tauu3)
+    W2_I[i,j] ~ dnorm(B.z2_I[i, j]*g4[j], tauu4)
 
   }
  }
@@ -166,7 +225,7 @@ model_string <- "model {
   for (i in 1:(nc+ni)) { b[i] ~ dnorm(0,0.0075) }
 
   ## Prior for spline parameters
-  for(i in 1:(k-1)){
+  for(i in 1:(k+1)){
   g1[i] ~ dnorm(0,0.01)
   g2[i] ~ dnorm(0,0.01)
   g3[i] ~ dnorm(0,0.01)
@@ -177,10 +236,10 @@ model_string <- "model {
   scale <- 1/tau ## convert tau to standard GLM scale
 
   # prior distributions error model
-  tauu1 ~ dgamma(0.01, 0.01)
-  tauu2 ~ dgamma(0.01, 0.01)
-  tauu3 ~ dgamma(0.01, 0.01)
-  tauu4 ~ dgamma(0.01, 0.01)
+  tauu1 ~  dgamma(0.01, 0.01)
+  tauu2 ~  dgamma(0.01, 0.01)
+  tauu3 ~  dgamma(0.01, 0.01)
+  tauu4 ~  dgamma(0.01, 0.01)
   taue1 ~  dgamma(0.01, 0.01)
   taue2 ~  dgamma(0.01, 0.01)
   taue3 ~  dgamma(0.01, 0.01)
@@ -190,6 +249,7 @@ model_string <- "model {
   sigma_u2 <- 1/tauu2
   sigma_u3 <- 1/tauu3
   sigma_u4 <- 1/tauu4
+
 }"
 
 #################################################################################
@@ -227,13 +287,18 @@ S2 <- cbind(fit$smooth[[2]]$S[[1]], fit$smooth[[2]]$S[[2]]) ## penalty matrices 
 S3 <- cbind(fit$smooth[[3]]$S[[1]], fit$smooth[[3]]$S[[2]]) ## penalty matrices for ABD control group
 S4 <- cbind(fit$smooth[[4]]$S[[1]], fit$smooth[[4]]$S[[2]]) ## penalty matrices for ABD treatment group
 
+D = 3 #degree
+K = 5 #number of control points = K+1 = 6
+M = D+K+1 #number of knots = M + 1 = 10
+n = nrow(data.sim)
+knot.positions = round(seq(1,n,M))
 
 ## Build the final dataset to fit Bayesian model
 ni <- length(unique(data$int.time)) # number of intercept terms
 nc <- ncol(X.mat.full) - 4*(k-1) - ni # number of covariates
 data.jags <- list(y = as.vector(Y), n = length(Y), ni = ni,
-                  nc = nc, k = k, X = X.mat, W1_C = W1_C.mat, W1_I = W1_I.mat, W2_C = W2_C.mat,
-                  W2_I = W2_I.mat, zero = rep(0, ncol(X.mat.full)))
+                  nc = nc, k = K, D = D, M = M, X = X.mat, W1_C = W1_C.mat, W1_I = W1_I.mat, W2_C = W2_C.mat,
+                  W2_I = W2_I.mat,knot.position = knot.positions)
 
 # Intilialize JAGS model
 jm <- jags.model(textConnection(model_string), data = data.jags,
@@ -398,3 +463,58 @@ sigmas.list <- lapply(1:5, function(i) {
 #png(file="./plots/Bsplines/sigma_plots.png")
 ggarrange(plotlist = sigmas.list, nrow = 2, ncol = 3)
 ##dev.off()
+
+
+
+D = 3 #degree
+K = 5 #number of control points = K+1 = 6
+M = D+K+1 #number of knots = M + 1 = 10
+x = 1:100
+a = min(x)
+b = max(x)
+eps = round(seq((a-1),(b+1),by = (b+1-a+1)/(M)))
+knot = vector()
+knot[1] = a-1
+knot[M+1] = b +1
+for(i in 2:(M)){
+  knot[i] = x[eps[i]]
+}
+
+# for(i in 1:D){
+#   knot[i] = knot[1]
+#   knot[(M+2)-i] = knot[M]
+# }
+
+B = matrix(0,100,(K+1))
+N = matrix(0,M,(D+1))
+
+for(p in 1:100){
+
+for(m in 1:M){
+  if(x[p]>=knot[m] &&  x[p]<= knot[m+1]){
+    N[m,1] = 1
+  }else{
+    N[m,1] = 0
+  }
+
+}
+rows = 1
+for(d in 2:(D+1)){
+  for(m in 1:(M-d+1)){
+      term1.1[m] = (x[p] - knot[m])/(knot[m+d-1] - knot[m])
+      term2.1[m] = (knot[m+d] - x[p])/(knot[m+d] - knot[m+1])
+      N[m,d] = term1.1[m]*N[m,d-1] + term2.1[m]*N[m+1,d-1]
+  }
+#rows = rows+1
+
+
+}
+
+for( r in 1:(K+1)){
+  B[p,r] = N[r, D+1]
+}
+  #B[p,] = N[(1:(K+1)),D+1]
+}
+B
+
+
