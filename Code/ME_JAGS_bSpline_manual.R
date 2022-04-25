@@ -163,10 +163,10 @@ model_string <- "model {
     for(p in 1:n){
       for(m in 1:M){
        #declaring the first layer of basis functions
-        N1_C[m,1] <- ifelse(z1_C[p] >= knot.1_C[m] && z1_C[p] <= knot.1_C[m+1], 1, 0)
-        N1_I[m,1] <- ifelse(z1_I[p] >= knot.1_I[m] && z1_I[p] <= knot.1_I[m+1], 1, 0)
-        N2_C[m,1] <- ifelse(z2_C[p] >= knot.2_C[m] && z2_C[p] <= knot.2_C[m+1], 1, 0)
-        N2_I[m,1] <- ifelse(z2_I[p] >= knot.2_I[m] && z2_I[p] <= knot.2_I[m+1], 1, 0)
+        N1_C[m,1,p] <- ifelse(z1_C[p] >= knot.1_C[m] && z1_C[p] <= knot.1_C[m+1], 1, 0)
+        N1_I[m,1,p] <- ifelse(z1_I[p] >= knot.1_I[m] && z1_I[p] <= knot.1_I[m+1], 1, 0)
+        N2_C[m,1,p] <- ifelse(z2_C[p] >= knot.2_C[m] && z2_C[p] <= knot.2_C[m+1], 1, 0)
+        N2_I[m,1,p] <- ifelse(z2_I[p] >= knot.2_I[m] && z2_I[p] <= knot.2_I[m+1], 1, 0)
       }
 
     #declaring the other layers of basis functions
@@ -174,37 +174,37 @@ model_string <- "model {
         for(m in 1:(M-d+1)){
 
       #S(MVPA) model for control group
-        N1_C[m,d] <-  ((z1_C[p] - knot.1_C[m])/(knot.1_C[m+d-1] - knot.1_C[m]))*N1_C[m,d-1]
-                   + ((knot.1_C[m+d] - z1_C[p])/(knot.1_C[m+d] - knot.1_C[m+1]))*N1_C[m+1,d-1]
+        N1_C[m,d,p] <-  (((z1_C[p] - knot.1_C[m]+0.0001)/(knot.1_C[m+d-1] - knot.1_C[m]+0.0003))*N1_C[m,d-1,p]
+                   + ((knot.1_C[m+d] - z1_C[p]+0.0002)/(knot.1_C[m+d] - knot.1_C[m+1]+0.0004))*N1_C[m+1,d-1,p])
 
-      #S(MVPA) model for treatment group
-        N1_I[m,d] <- ((z1_I[p] - knot.1_I[m])/(knot.1_I[m+d-1] - knot.1_I[m]))*N1_I[m,d-1]
-                  + ((knot.1_I[m+d] - z1_I[p])/(knot.1_I[m+d] - knot.1_I[m+1]))*N1_I[m+1,d-1]
+       #S(MVPA) model for treatment group
+         N1_I[m,d,p] <- (((z1_I[p] - knot.1_I[m]+0.0001)/(knot.1_I[m+d-1] - knot.1_I[m]+0.0003))*N1_I[m,d-1,p]
+                   + ((knot.1_I[m+d] - z1_I[p]+0.0002)/(knot.1_I[m+d] - knot.1_I[m+1]+0.0004))*N1_I[m+1,d-1,p])
 
-      #S(ABD) model for control group
-        N2_C[m,d] <- ((z2_C[p] - knot.2_C[m])/(knot.2_C[m+d-1] - knot.2_C[m]))*N2_C[m,d-1]
-                  + ((knot.2_C[m+d] - z2_C[p])/(knot.2_C[m+d] - knot.2_C[m+1]))*N2_C[m+1,d-1]
+       #S(ABD) model for control group
+         N2_C[m,d,p] <- (((z2_C[p] - knot.2_C[m]+0.0001)/(knot.2_C[m+d-1] - knot.2_C[m]+0.0003))*N2_C[m,d-1,p]
+                  + ((knot.2_C[m+d] - z2_C[p]+0.0002)/(knot.2_C[m+d] - knot.2_C[m+1]+0.0004))*N2_C[m+1,d-1,p])
 
-      #S(ABD) model for treatment group
-        N2_I[m,d] <- ((z2_I[p] - knot.2_I[m])/(knot.2_I[m+d-1] - knot.2_I[m]))*N2_I[m,d-1]
-                  + ( (knot.2_I[m+d] - z2_I[p])/(knot.2_I[m+d] - knot.2_I[m+1]))*N2_I[m+1,d-1]
-      }
+       #S(ABD) model for treatment group
+         N2_I[m,d,p] <- (((z2_I[p] - knot.2_I[m]+0.0001)/(knot.2_I[m+d-1] - knot.2_I[m]+0.0003))*N2_I[m,d-1,p]
+                   + ( (knot.2_I[m+d] - z2_I[p]+0.0002)/(knot.2_I[m+d] - knot.2_I[m+1]+0.0004))*N2_I[m+1,d-1,p])
+       }
 
    }
 
     for(r in 1:(k+1)){
 
     #S(MVPA) model for control group
-      B.z1_C[p,r] <- N1_C[r, D+1]
+      B.z1_C[p,r] <- N1_C[r, D+1,p]
 
     #S(MVPA) model for treatment group
-      B.z1_I[p,r] <- N1_I[r, D+1]
+      B.z1_I[p,r] <- N1_I[r, D+1,p]
 
     #S(ABD) model for control group
-      B.z2_C[p,r] <- N2_C[r, D+1]
+      B.z2_C[p,r] <- N2_C[r, D+1,p]
 
     #S(ABD) model for treatment group
-      B.z2_I[p,r] <- N2_I[r, D+1]
+      B.z2_I[p,r] <- N2_I[r, D+1,p]
     }
 
   }
@@ -292,7 +292,7 @@ K = 5 #number of control points = K+1 = 6
 M = D+K+1 #number of knots = M + 1 = 10
 n = nrow(data.sim)
 knot.positions = round(seq(1,n,M))
-
+k = K
 ## Build the final dataset to fit Bayesian model
 ni <- length(unique(data$int.time)) # number of intercept terms
 nc <- ncol(X.mat.full) - 4*(k-1) - ni # number of covariates
@@ -303,15 +303,15 @@ data.jags <- list(y = as.vector(Y), n = length(Y), ni = ni,
 # Intilialize JAGS model
 jm <- jags.model(textConnection(model_string), data = data.jags,
                  inits = list(.RNG.name = "base::Wichmann-Hill", .RNG.seed = 2021),
-                 n.chains = 1, n.adapt = 100)
+                 n.chains = 1, n.adapt = 1000)
 
 # specify number of burn-in
-update(jm, n.burn = 200)
+update(jm, n.burn = 5000)
 
 # Obtain JAGS samples
 start = Sys.time()
 samples <- jags.samples(jm, c("b", "g1", "g2", "g3", "g4","sigma_u1","sigma_u2",
-                              "sigma_u3","sigma_u4","scale"), n.iter = 1000, thin = 2)
+                              "sigma_u3","sigma_u4","scale"), n.iter = 50000, thin = 100)
 stop = Sys.time()
 time.elaspsed = stop - start; time.elaspsed
 
@@ -330,7 +330,7 @@ samples.array <- data.frame(t(samples$b[ , ,1]), t(samples$g1[ , ,1]), t(samples
 for(i in 1:ncol(X.mat)){
   colnames(samples.array)[i] <- colnames(X.mat)[i]
 }
-for(i in 1:10){
+for(i in 1:k+1){
   colnames(samples.array)[(ncol(X.mat)+i)] <- paste("MVPA_C_k_",i)
   colnames(samples.array)[(ncol(X.mat)+(k-1)+i)] <- paste("MVPA_I_k_",i)
   colnames(samples.array)[(ncol(X.mat)+2*(k-1)+i)] <- paste("ABD_C_k_",i)
@@ -338,16 +338,16 @@ for(i in 1:10){
 }
 colnames(samples.array)[61:65] <- c("sigma_u1","sigma_u2", "sigma_u3","sigma_u4","sigma_y")
 
-write.csv(samples.array, "C:/Users/anany/Desktop/JAGSME/Code/samples.bspline.csv")
+write.csv(samples.array, "C:/Users/anany/Desktop/JAGSME/Code/samples.bspline.manual.csv")
 
 
 #matrices to store the g values for the (k-1) knots
 n_row = ncol(samples$g1)
-g1_mat = matrix(NA, n_row,10)
-g2_mat = matrix(NA, n_row,10)
-g3_mat = matrix(NA, n_row,10)
-g4_mat = matrix(NA, n_row,10)
-for(i in 1:10){
+g1_mat = matrix(NA, n_row,k+1)
+g2_mat = matrix(NA, n_row,k+1)
+g3_mat = matrix(NA, n_row,k+1)
+g4_mat = matrix(NA, n_row,k+1)
+for(i in 1:k+1){
   g1_mat[,i ] <- samples$g1[i, ,1]
   g2_mat[,i ] <- samples$g2[i, ,1]
   g3_mat[,i ] <- samples$g3[i, ,1]
@@ -356,23 +356,23 @@ for(i in 1:10){
 
 #creating the list of traceplots corresponding to the posterior distributions
 #at each knot point for each g parameter
-g1_list <- lapply(1:10, function(i) {
+g1_list <- lapply(1:k+1, function(i) {
   ggplot(data = as.data.frame(g1_mat[ ,i]), aes(x = 1:n_row, y = g1_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("MVPA_C_k_",i))+ylab(NULL)
 })
 
-g2_list <- lapply(1:10, function(i) {
+g2_list <- lapply(1:k+1, function(i) {
   ggplot(data = as.data.frame(g2_mat[ ,i]), aes(x = 1:n_row, y = g2_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("MVPA_I_k_",i))+ylab(NULL)
 })
-g3_list <- lapply(1:10, function(i) {
+g3_list <- lapply(1:k+1, function(i) {
   ggplot(data = as.data.frame(g3_mat[ ,i]), aes(x = 1:n_row, y = g3_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("ABD_C_k_",i))+ylab(NULL)
 })
-g4_list <- lapply(1:10, function(i) {
+g4_list <- lapply(1:k+1, function(i) {
   ggplot(data = as.data.frame(g4_mat[ ,i]), aes(x = 1:n_row, y = g4_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(paste("ABD_I_k_",i))+ylab(NULL)
@@ -416,7 +416,7 @@ ageBMI.list <- lapply(c(7,8,14,15), function(i) {
     ggtitle(covariates[i])+ylab(NULL)
 })
 
-ht_sample.list <- lapply(c(9,10,16,17), function(i) {
+ht_sample.list <- lapply(c(9,k+1,16,17), function(i) {
   ggplot(data = as.data.frame(beta_mat[ ,i]), aes(x = 1:n_row, y = beta_mat[ ,i] ))+
     geom_line() + xlab("Index (B-S)")+
     ggtitle(covariates[i])+ylab(NULL)
@@ -464,6 +464,186 @@ sigmas.list <- lapply(1:5, function(i) {
 ggarrange(plotlist = sigmas.list, nrow = 2, ncol = 3)
 ##dev.off()
 
+################################################################################
+# Organize the results
+################################################################################
+
+## Organize the linear parameter results
+
+# Obtain index of covariates and intercept
+ind.cov <- 1:(ni+nc)
+
+# Get mean and sd from MCMC samples
+theta.sample <- samples$b[ind.cov,,1]
+est <- apply(theta.sample, 1, mean)
+se <- apply(theta.sample, 1, sd)
+
+# Calculate p-value for whether estimate != 0
+pvals <-  2 * (1 - pnorm(abs(est / se)))
+
+## Combine output and print results
+results <- cbind(est, se, pvals)
+rownames(results) <- colnames(X.mat)[ind.cov]
+print(results, digits = 2)
+
+
+## Organize the curve output
+
+# Combine scaled PA vars into matrix
+X <- data.sim[ , pa_vars]
+
+# Combine original units of PA vars into matrix
+X.orig <- rbind(dataC[c(t1.C, t2.C, t3.C), pa_vars_orig],
+                dataI[c(t1.I, t2.I, t3.I), pa_vars_orig])
+# Number of spline bases per term
+nb <- k - 1
+
+# List to save curve results
+curve <- list()
+
+# Loop over each smooth function
+# (one curve for each group and for each PA variable)
+for(i in 1:(2*length(pa_vars))){
+
+  # Data is grouped as MVPA control group, MVPA trt group, ABD control group, ABD trt group
+  # Specify type = 0 for control in data groups 1, 3
+  if(i %in% c(1, 3)){
+    type = 0
+  }
+  # Specify type = 1 for treatment in data groups 2, 4
+  else{
+    type = 1
+  }
+  # Indices of corresponding spline basis in X.spl
+  ind.spl <- nc + ni + ((i-1)*nb+1):(i*nb)
+
+  # Calculate estimated curve for each MCMC sample
+  fHat.all <- X.mat.full[,ind.spl] %*% samples.jags[ind.spl]
+
+  # Backtransform estimated curves into original units
+  fHat.tilde <- fHat.all * sd(data[ , y]) + mean(data[ , y])
+
+  # Obtain mean and 95% CI for curve
+  fHat.mean <- apply(fHat.tilde, 1, mean)
+  lower <- apply(fHat.tilde, 1, function(x) quantile(x, 0.025))
+  upper <- apply(fHat.tilde, 1, function(x) quantile(x, 0.975))
+
+
+  # Obtain x values for MVPA for plotting
+  # data groups 1, 2 correspond to MVPA
+  if(i %in% c(1, 2)){
+    x.orig <- X.orig[, 1]
+    x <- X[ , 1]
+    pa <- "MVPA"
+  }else{     # Obtain x values for ABD for plotting
+    # data groups 3, 4 correspond to ABD
+    x.orig <- X.orig[, 2]
+    x <- X[ , 2]
+    pa <- "ABD"
+  }
+
+  # Combine x and y values into list
+  curve[[paste0(pa, i)]] <- data.frame(x.orig = x.orig, s.x = fHat.mean)
+
+  # Smooth CI estimates and save into list
+  curve[[paste0(pa, i)]]$lower <- gam(lower ~ s(x), method = "REML")$fitted.values
+  curve[[paste0(pa, i)]]$upper <- gam(upper ~ s(x), method = "REML")$fitted.values
+
+}
+
+# Obtain intercepts in original scale
+int <- est[1:ni] * sd(data[ , y]) + mean(data[ , y])
+
+# Obtain curves with intercepts for each group
+curve.with.int <- list()
+
+for(pa in names(curve)){
+  # Add time-dependent intercept to smooth functions for each group
+  ## If in control group (data groups 1, 3)
+  if(any(grepl('1', strsplit(pa, '')[[1]])) | any(grepl('3', strsplit(pa, '')[[1]]))){
+    # Add time-and-group-dependent interept to each curve (mean and CI)
+    # Save final curve with intercept into dataframe
+    curve.with.int[[pa]] <- lapply(1:(length(int)/2), function(ind){x = int[ind];
+    int.ind <- 1:nrow(dataC);
+    data.frame(x = curve[[pa]]$x.orig[int.ind],
+               s.x = x + curve[[pa]]$s.x[int.ind],
+               lower = x + curve[[pa]]$lower[int.ind],
+               upper = x + curve[[pa]]$upper[int.ind],
+               type = ind);})
+    # Label as control group
+    ctrl <- TRUE
+  }
+  ## If in treatment group (data groups 2, 4)
+  else{
+    # Add time-and-group-dependent interept to each curve (mean and CI)
+    # Save final curve with intercept into dataframe
+    curve.with.int[[pa]] <- lapply((length(int)/2 +1):length(int), function(ind){x = int[ind];
+    int.ind <- (nrow(dataC)+1):nrow(data.sim);
+    data.frame(x = curve[[pa]]$x.orig[int.ind],
+               s.x = x + curve[[pa]]$s.x[int.ind],
+               lower = x + curve[[pa]]$lower[int.ind],
+               upper = x + curve[[pa]]$upper[int.ind],
+               type = ind);})
+    # Label as treatment group
+    ctrl <- FALSE
+  }
+
+  # Combine into one dataframe for each pa
+  curve.with.int[[pa]] <- do.call("rbind", curve.with.int[[pa]])
+}
+
+# Combine into one list of dataframes for each PA variable
+final.curve <- list()
+final.curve[[pa_vars[1]]] <- do.call("rbind", lapply(names(curve.with.int)[which(grepl("MVPA", names(curve.with.int)))],
+                                                     function(x) curve.with.int[[x]]))
+final.curve[[pa_vars[2]]] <- do.call("rbind", lapply(names(curve.with.int)[which(grepl("ABD", names(curve.with.int)))],
+                                                     function(x) curve.with.int[[x]]))
+
+####################################################################
+# Plot the Additive Terms
+####################################################################
+
+## Plot the estimated curves
+glist <- list()
+J <- 1 # loop count
+for(pa in pa_vars){
+
+  # Get x-axis label for plotting
+  xlab <- paste0("Difference in ", plot.title[J], " (min/day)")
+
+  # Get y-axis label for plotting
+  if(grepl("intensity", y)){
+    ylab <- "Difference in fatigue intensity after baseline"
+  }
+  else{
+    ylab <- "Difference in fatigue interference after baseline"
+  }
+  # Organize the data frame for plotting by order of x-axis
+  est.df <- final.curve[[pa]][order(final.curve[[pa]][,1]),]
+  est.df <- distinct(est.df)
+
+  # Create levels of each curve to specify group type and time period
+  est.df$type <- as.factor(est.df$type)
+  levels(est.df$type) <- c("Ctrl-M3", "Ctrl-M6", "Ctrl-M12", "Trt-M3", "Trt-M6", "Trt-M12")
+
+  # Create plot and save to list
+  glist[[pa]] <- ggplot(est.df, aes(x = x, y = s.x, group = type, color = type)) +
+    geom_line() + theme_bw()  +
+    geom_rug(aes(x = x), sides = "b", color = "black") +
+    labs(x = xlab, y = ylab, title = plot.title[J]) +
+    theme(plot.title = element_text(size = 15, hjust = 0.5, face = "bold"),
+          text = element_text(size = 10), plot.subtitle = element_text(hjust = 0.5))
+
+  # Update loop count
+  J <- J + 1
+}
+
+# pdf(file = "./figures/factor_by_curve_varying_intercept/EstimatedCurve_Intensity_JAGS.pdf",
+#     width = 10, height = 4.5)
+#png(file="./plots/Bsplines/fatigue_comparison_1.png", width=600, height=350)
+do.call("grid.arrange", c(glist, nrow = floor(sqrt(length(glist)))))
+#dev.off()
+
 
 
 D = 3 #degree
@@ -486,24 +666,24 @@ for(i in 2:(M)){
 # }
 
 B = matrix(0,100,(K+1))
-N = matrix(0,M,(D+1))
+N = array(0,c(M,(D+1),100))
 
 for(p in 1:100){
 
 for(m in 1:M){
   if(x[p]>=knot[m] &&  x[p]<= knot[m+1]){
-    N[m,1] = 1
+    N[m,1,p] = 1
   }else{
-    N[m,1] = 0
+    N[m,1,p] = 0
   }
 
 }
 rows = 1
 for(d in 2:(D+1)){
   for(m in 1:(M-d+1)){
-      term1.1[m] = (x[p] - knot[m])/(knot[m+d-1] - knot[m])
-      term2.1[m] = (knot[m+d] - x[p])/(knot[m+d] - knot[m+1])
-      N[m,d] = term1.1[m]*N[m,d-1] + term2.1[m]*N[m+1,d-1]
+      term1.1 = (x[p] - knot[m])/(knot[m+d-1] - knot[m])
+      term2.1 = (knot[m+d] - x[p])/(knot[m+d] - knot[m+1])
+      N[m,d,p] = term1.1*N[m,d-1,p] + term2.1*N[m+1,d-1,p]
   }
 #rows = rows+1
 
@@ -511,7 +691,7 @@ for(d in 2:(D+1)){
 }
 
 for( r in 1:(K+1)){
-  B[p,r] = N[r, D+1]
+  B[p,r] = N[r, D+1,p]
 }
   #B[p,] = N[(1:(K+1)),D+1]
 }
