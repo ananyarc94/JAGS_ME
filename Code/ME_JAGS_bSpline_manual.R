@@ -130,10 +130,11 @@ data.sim[, covars[grepl("age", covars)]] <- apply(data.sim[, covars[grepl("age",
 
 model_string <- "model {
 
-  # Likelihood (deign matrix %*% matrix of parameters to estimate)
-  mu <- X %*% b + B.z1_C %*% g1 + B.z1_I %*% g2 + B.z2_C %*% g3 + B.z2_I %*% g4  ## expected response
 
   for (i in 1:n){
+   # Likelihood (deign matrix %*% matrix of parameters to estimate)
+  mu[i] <- X[i, ] %*% b + B.z1_C[i, ] %*% g1 + B.z1_I[i, ] %*% g2 + B.z2_C[i, ] %*% g3 + B.z2_I[i, ] %*% g4  ## expected response
+
   ## response model
     y[i] ~ dnorm(mu[i],tau)
 
@@ -174,20 +175,24 @@ model_string <- "model {
         for(m in 1:(M-d+1)){
 
       #S(MVPA) model for control group
-        N1_C[m,d,p] <-  (((z1_C[p] - knot.1_C[m]+0.0001)/(knot.1_C[m+d-1] - knot.1_C[m]+0.0003))*N1_C[m,d-1,p]
-                   + ((knot.1_C[m+d] - z1_C[p]+0.0002)/(knot.1_C[m+d] - knot.1_C[m+1]+0.0004))*N1_C[m+1,d-1,p])
+        temp1[m,d,p] <-  (((z1_C[p] - knot.1_C[m]+0.0001)/(knot.1_C[m+d-1] - knot.1_C[m]+0.0003))*N1_C[m,d-1,p]
+                  + ((knot.1_C[m+d] - z1_C[p]+0.0002)/(knot.1_C[m+d] - knot.1_C[m+1]+0.0004))*N1_C[m+1,d-1,p])
+        N1_C[m,d,p] <- ifelse(knot.1_C[m+d-1] == knot.1_C[m],0,temp1[m,d,p])
 
-       #S(MVPA) model for treatment group
-         N1_I[m,d,p] <- (((z1_I[p] - knot.1_I[m]+0.0001)/(knot.1_I[m+d-1] - knot.1_I[m]+0.0003))*N1_I[m,d-1,p]
-                   + ((knot.1_I[m+d] - z1_I[p]+0.0002)/(knot.1_I[m+d] - knot.1_I[m+1]+0.0004))*N1_I[m+1,d-1,p])
+      #S(MVPA) model for treatment group
+        temp2[m,d,p] <- (((z1_I[p] - knot.1_I[m]+0.0001)/(knot.1_I[m+d-1] - knot.1_I[m]+0.0003))*N1_I[m,d-1,p]
+                 + ((knot.1_I[m+d] - z1_I[p]+0.0002)/(knot.1_I[m+d] - knot.1_I[m+1]+0.0004))*N1_I[m+1,d-1,p])
+        N1_I[m,d,p] <- ifelse(knot.1_C[m+d-1] == knot.1_C[m],0,temp2[m,d,p])
 
-       #S(ABD) model for control group
-         N2_C[m,d,p] <- (((z2_C[p] - knot.2_C[m]+0.0001)/(knot.2_C[m+d-1] - knot.2_C[m]+0.0003))*N2_C[m,d-1,p]
-                  + ((knot.2_C[m+d] - z2_C[p]+0.0002)/(knot.2_C[m+d] - knot.2_C[m+1]+0.0004))*N2_C[m+1,d-1,p])
+      #S(ABD) model for control group
+        temp3[m,d,p] <- (((z2_C[p] - knot.2_C[m]+0.0001)/(knot.2_C[m+d-1] - knot.2_C[m]+0.0003))*N2_C[m,d-1,p]
+                 + ((knot.2_C[m+d] - z2_C[p]+0.0002)/(knot.2_C[m+d] - knot.2_C[m+1]+0.0004))*N2_C[m+1,d-1,p])
+        N2_C[m,d,p] <- ifelse(knot.1_C[m+d-1] == knot.1_C[m],0,temp3[m,d,p])
 
-       #S(ABD) model for treatment group
-         N2_I[m,d,p] <- (((z2_I[p] - knot.2_I[m]+0.0001)/(knot.2_I[m+d-1] - knot.2_I[m]+0.0003))*N2_I[m,d-1,p]
-                   + ( (knot.2_I[m+d] - z2_I[p]+0.0002)/(knot.2_I[m+d] - knot.2_I[m+1]+0.0004))*N2_I[m+1,d-1,p])
+      #S(ABD) model for treatment group
+        temp4[m,d,p] <- (((z2_I[p] - knot.2_I[m]+0.0001)/(knot.2_I[m+d-1] - knot.2_I[m]+0.0003))*N2_I[m,d-1,p]
+                 + ( (knot.2_I[m+d] - z2_I[p]+0.0002)/(knot.2_I[m+d] - knot.2_I[m+1]+0.0004))*N2_I[m+1,d-1,p])
+        N2_I[m,d,p] <- ifelse(knot.1_C[m+d-1] == knot.1_C[m],0,temp4[m,d,p])
        }
 
    }
@@ -222,7 +227,7 @@ model_string <- "model {
  }
 
   ## Prior for covariates and intercept
-  for (i in 1:(nc+ni)) { b[i] ~ dnorm(0,0.0075) }
+  for (i in 1:nci) { b[i] ~ dnorm(0,0.0075) }
 
   ## Prior for spline parameters
   for(i in 1:(k+1)){
@@ -255,12 +260,13 @@ model_string <- "model {
 #################################################################################
 # Build the JAGS model
 #################################################################################
-
+nci = 20 #number of covariates
+n = nrow(data.sim) #number of subjects
 # Formula for model for mean ABD and MVPA on fatigue
-k <- 11 # number of knots for spline
+control.points <- 7 # number of knots for spline
 form <- paste0(y_sc, " ~ -1 + int.time")
 for(pa in pa_vars){
-  form <- paste0(form, " + s(", pa, ", bs = 'bs', k = ", k, ", by = as.factor(Randomization))")
+  form <- paste0(form, " + s(", pa, ", bs = 'bs', k = ", control.points, ", by = as.factor(Randomization))")
 }
 
 for(param in c(colnames(zC), colnames(zI))){
@@ -276,28 +282,30 @@ fit.jagam <- jagam(as.formula(form),data=data.sim, file=jags.file,
                    sp.prior="gamma",diagonalize=TRUE)
 # Derive linear predictor matrix
 X.mat.full <- predict.gam(fit, type = "lpmatrix")
-X.mat <- X.mat.full[ ,1:20] #covariates
-W1_C.mat <- X.mat.full[ ,21:30]  # MVPA for control group for different knot points
-W1_I.mat <- X.mat.full[ ,31:40]  # MVPA for treatment group for different knot points
-W2_C.mat <- X.mat.full[ ,41:50]  # ABD for control group for different knot points
-W2_I.mat <- X.mat.full[ ,51:60]  # ABD for treatment group for different knot points
+X.mat <- X.mat.full[ ,1:nci] #covariates
+W1_C.mat <- X.mat.full[ ,(nci+1):(nci+control.points-1)]  # MVPA for control group for different knot points
+W1_I.mat <- X.mat.full[ ,(nci+control.points):(nci+2*control.points-2)]  # MVPA for treatment group for different knot points
+W2_C.mat <- X.mat.full[ ,(nci+2*control.points-1):(nci+3*control.points-3)]  # ABD for control group for different knot points
+W2_I.mat <- X.mat.full[ ,(nci+3*control.points-2):(nci+4*control.points-4)]  # ABD for treatment group for different knot points
 
-S1 <- cbind(fit$smooth[[1]]$S[[1]], fit$smooth[[1]]$S[[2]]) ## penalty matrices for MVPA control group
-S2 <- cbind(fit$smooth[[2]]$S[[1]], fit$smooth[[2]]$S[[2]]) ## penalty matrices for MVPA treatment group
-S3 <- cbind(fit$smooth[[3]]$S[[1]], fit$smooth[[3]]$S[[2]]) ## penalty matrices for ABD control group
-S4 <- cbind(fit$smooth[[4]]$S[[1]], fit$smooth[[4]]$S[[2]]) ## penalty matrices for ABD treatment group
 
 D = 3 #degree
 K = 5 #number of control points = K+1 = 6
 M = D+K+1 #number of knots = M + 1 = 10
-n = nrow(data.sim)
+
 knot.positions = round(seq(1,n,M))
+#for open boundaries of Bspline
+for(i in 1:D){
+  knot.positions[i] = knot.positions[1]
+  knot.positions[(M+2)-i] = knot.positions[M]
+}
+
 k = K
 ## Build the final dataset to fit Bayesian model
 ni <- length(unique(data$int.time)) # number of intercept terms
 nc <- ncol(X.mat.full) - 4*(k-1) - ni # number of covariates
-data.jags <- list(y = as.vector(Y), n = length(Y), ni = ni,
-                  nc = nc, k = K, D = D, M = M, X = X.mat, W1_C = W1_C.mat, W1_I = W1_I.mat, W2_C = W2_C.mat,
+data.jags <- list(y = as.vector(Y), n = length(Y), nci = nci, k = K, D = D, M = M,
+                  X = X.mat, W1_C = W1_C.mat, W1_I = W1_I.mat, W2_C = W2_C.mat,
                   W2_I = W2_I.mat,knot.position = knot.positions)
 
 # Intilialize JAGS model
@@ -311,7 +319,7 @@ update(jm, n.burn = 5000)
 # Obtain JAGS samples
 start = Sys.time()
 samples <- jags.samples(jm, c("b", "g1", "g2", "g3", "g4","sigma_u1","sigma_u2",
-                              "sigma_u3","sigma_u4","scale"), n.iter = 50000, thin = 100)
+                              "sigma_u3","sigma_u4","scale"), n.iter = 50000, thin = 10)
 stop = Sys.time()
 time.elaspsed = stop - start; time.elaspsed
 
@@ -471,7 +479,7 @@ ggarrange(plotlist = sigmas.list, nrow = 2, ncol = 3)
 ## Organize the linear parameter results
 
 # Obtain index of covariates and intercept
-ind.cov <- 1:(ni+nc)
+ind.cov <- 1:nci
 
 # Get mean and sd from MCMC samples
 theta.sample <- samples$b[ind.cov,,1]
@@ -496,7 +504,7 @@ X <- data.sim[ , pa_vars]
 X.orig <- rbind(dataC[c(t1.C, t2.C, t3.C), pa_vars_orig],
                 dataI[c(t1.I, t2.I, t3.I), pa_vars_orig])
 # Number of spline bases per term
-nb <- k - 1
+nb <- control.points-1
 
 # List to save curve results
 curve <- list()
@@ -509,13 +517,11 @@ for(i in 1:(2*length(pa_vars))){
   # Specify type = 0 for control in data groups 1, 3
   if(i %in% c(1, 3)){
     type = 0
-  }
-  # Specify type = 1 for treatment in data groups 2, 4
-  else{
+  }else{  # Specify type = 1 for treatment in data groups 2, 4
     type = 1
   }
   # Indices of corresponding spline basis in X.spl
-  ind.spl <- nc + ni + ((i-1)*nb+1):(i*nb)
+  ind.spl <- nci + ((i-1)*nb+1):(i*nb)
 
   # Calculate estimated curve for each MCMC sample
   fHat.all <- X.mat.full[,ind.spl] %*% samples.jags[ind.spl]
@@ -645,6 +651,10 @@ do.call("grid.arrange", c(glist, nrow = floor(sqrt(length(glist)))))
 #dev.off()
 
 
+####################################################################
+# Creating a function to calculate bspline basis functions
+####################################################################
+
 
 D = 3 #degree
 K = 5 #number of control points = K+1 = 6
@@ -660,10 +670,10 @@ for(i in 2:(M)){
   knot[i] = x[eps[i]]
 }
 
-# for(i in 1:D){
-#   knot[i] = knot[1]
-#   knot[(M+2)-i] = knot[M]
-# }
+for(i in 1:D){
+  knot[i] = knot[1]
+  knot[(M+2)-i] = knot[M]
+}
 
 B = matrix(0,100,(K+1))
 N = array(0,c(M,(D+1),100))
@@ -678,12 +688,16 @@ for(m in 1:M){
   }
 
 }
-rows = 1
+#rows = 1
 for(d in 2:(D+1)){
   for(m in 1:(M-d+1)){
+    if(knot[m+d-1]!= knot[m]){
       term1.1 = (x[p] - knot[m])/(knot[m+d-1] - knot[m])
-      term2.1 = (knot[m+d] - x[p])/(knot[m+d] - knot[m+1])
+      term2.1 = (knot[m+d-1] - x[p])/(knot[m+d] - knot[m+1])
       N[m,d,p] = term1.1*N[m,d-1,p] + term2.1*N[m+1,d-1,p]
+    }else{
+      N[m,d,p] = 0
+    }
   }
 #rows = rows+1
 
